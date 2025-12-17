@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { MagnifyingGlassIcon, BookOpenIcon, ArrowPathIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, BookOpenIcon, ArrowPathIcon, XMarkIcon, MicrophoneIcon, StopIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { lookupWord, transcribeAudio } from './services/geminiService';
 import { DictionaryResponse } from './types';
 import { EntryCard } from './components/EntryCard';
@@ -54,7 +54,7 @@ function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Determine supported mime type (iOS Safari supports mp4, others webm)
+      // Determine supported mime type
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
         ? 'audio/webm' 
         : 'audio/mp4';
@@ -70,6 +70,11 @@ function App() {
         // Stop all tracks to release mic
         stream.getTracks().forEach(track => track.stop());
 
+        if (chunks.length === 0) {
+            setIsRecording(false);
+            return;
+        }
+
         const blob = new Blob(chunks, { type: mimeType });
         
         // Convert to Base64
@@ -78,19 +83,21 @@ function App() {
         reader.onloadend = async () => {
             const base64String = (reader.result as string).split(',')[1];
             
-            setLoading(true);
+            setLoading(true); // UI shows loading
             try {
                 const text = await transcribeAudio(base64String, mimeType);
-                if (text) {
-                    performSearch(text);
+                const trimmedText = text?.trim();
+                
+                if (trimmedText) {
+                    performSearch(trimmedText);
                 } else {
                     setError("Could not understand audio. Please try again.");
-                    setLoading(false);
+                    setLoading(false); 
                 }
             } catch (err) {
                 console.error("Transcription error", err);
                 setError("Error processing audio.");
-                setLoading(false);
+                setLoading(false); 
             }
         };
       };
@@ -151,7 +158,7 @@ function App() {
                     enterKeyHint="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className={`block w-full pl-10 sm:pl-12 pr-24 sm:pr-28 py-3 sm:py-4 rounded-xl sm:rounded-2xl border-slate-200 bg-white shadow-lg shadow-slate-200/50 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:outline-none text-lg sm:text-xl transition-all duration-200 ease-in-out ${isRecording ? 'ring-2 ring-red-500 border-red-500' : ''}`}
+                    className={`block w-full pl-10 sm:pl-12 pr-32 sm:pr-36 py-3 sm:py-4 rounded-xl sm:rounded-2xl border-slate-200 bg-white shadow-lg shadow-slate-200/50 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:outline-none text-lg sm:text-xl transition-all duration-200 ease-in-out ${isRecording ? 'ring-2 ring-red-500 border-red-500' : ''}`}
                     placeholder={isRecording ? "Listening..." : "Enter a word..."}
                     autoFocus
                     autoComplete="off"
@@ -163,7 +170,7 @@ function App() {
                         <button
                             type="button"
                             onClick={clearSearch}
-                            className="flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors"
+                            className="hidden sm:flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors"
                             aria-label="Clear search"
                         >
                             <XMarkIcon className="h-5 w-5" />
@@ -181,6 +188,17 @@ function App() {
                         ) : (
                             <MicrophoneIcon className="h-5 w-5" />
                         )}
+                    </button>
+
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
+                    <button
+                        type="submit"
+                        disabled={!query.trim() || loading}
+                        className="flex items-center justify-center p-2 rounded-full text-brand-500 hover:text-brand-700 hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Search"
+                    >
+                        <ArrowRightIcon className="h-5 w-5 sm:h-6 sm:w-6" />
                     </button>
                 </div>
             </form>

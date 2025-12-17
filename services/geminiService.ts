@@ -1,15 +1,13 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { DictionaryResponse, Language } from "../types";
+import { DictionaryResponse } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+// Relaxed schema to avoid validation errors, enforcing structure but not strict enums
 const dictionarySchema: Schema = {
   type: Type.OBJECT,
   properties: {
     detectedLanguage: {
       type: Type.STRING,
-      enum: [Language.EN, Language.DE, Language.CN, Language.UNKNOWN],
-      description: "The language of the input term detected by the model.",
+      description: "The language of the input term detected by the model (EN, DE, CN, or UNKNOWN).",
     },
     sourceTerm: {
       type: Type.STRING,
@@ -68,26 +66,41 @@ const dictionarySchema: Schema = {
 };
 
 export const lookupWord = async (term: string): Promise<DictionaryResponse> => {
+  // Re-instantiate client per request to ensure fresh env vars / context
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `You are a high-precision trilingual dictionary (English, German, Chinese). 
       Analyze the term: "${term}". 
       Identify the source language. 
-      Provide comprehensive definitions for the top 1-3 distinct meanings (e.g. if it's 'Bank', include both financial and seating meanings).
+      Provide comprehensive definitions for the top 1-3 distinct meanings.
       Ensure Chinese includes Pinyin. Ensure German nouns include gender (der/die/das).
-      Provide a practical example sentence translated into all three languages for each meaning.`,
+      Provide a practical example sentence translated into all three languages for each meaning.
+      Return the result strictly as a valid JSON object matching the schema.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: dictionarySchema,
-        temperature: 0.3, // Lower temperature for more deterministic dictionary results
+        temperature: 0.1, // Lower temperature for more deterministic JSON
       },
     });
 
-    if (response.text) {
-      return JSON.parse(response.text) as DictionaryResponse;
+    const text = response.text;
+    if (!text) throw new Error("No response text generated");
+
+    // Robust JSON extraction
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      const jsonString = text.substring(firstBrace, lastBrace + 1);
+      return JSON.parse(jsonString) as DictionaryResponse;
     }
-    throw new Error("No response text generated");
+    
+    // Fallback
+    return JSON.parse(text) as DictionaryResponse;
+
   } catch (error) {
     console.error("Dictionary lookup failed:", error);
     throw error;
@@ -95,6 +108,8 @@ export const lookupWord = async (term: string): Promise<DictionaryResponse> => {
 };
 
 export const transcribeAudio = async (audioBase64: string, mimeType: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
