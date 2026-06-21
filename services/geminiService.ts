@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { DictionaryResponse } from "../types";
 
-// Relaxed schema to avoid validation errors, enforcing structure but not strict enums
 const dictionarySchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -66,12 +65,12 @@ const dictionarySchema: Schema = {
 };
 
 export const lookupWord = async (term: string): Promise<DictionaryResponse> => {
-  // Re-instantiate client per request to ensure fresh env vars / context
+  // Creating a new instance per call ensures we always use the latest environment state
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `You are a high-precision trilingual dictionary (English, German, Chinese). 
       Analyze the term: "${term}". 
       Identify the source language. 
@@ -82,25 +81,24 @@ export const lookupWord = async (term: string): Promise<DictionaryResponse> => {
       config: {
         responseMimeType: "application/json",
         responseSchema: dictionarySchema,
-        temperature: 0.1, // Lower temperature for more deterministic JSON
+        temperature: 0.1,
       },
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response text generated");
+    if (!text) {
+      throw new Error("The model returned an empty response.");
+    }
 
-    // Robust JSON extraction
+    // Robust JSON extraction in case the model adds preamble text
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
-
     if (firstBrace !== -1 && lastBrace !== -1) {
       const jsonString = text.substring(firstBrace, lastBrace + 1);
       return JSON.parse(jsonString) as DictionaryResponse;
     }
     
-    // Fallback
     return JSON.parse(text) as DictionaryResponse;
-
   } catch (error) {
     console.error("Dictionary lookup failed:", error);
     throw error;
@@ -112,15 +110,15 @@ export const transcribeAudio = async (audioBase64: string, mimeType: string): Pr
   
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType, data: audioBase64 } },
-          { text: "Transcribe this spoken word or phrase exactly. It is likely in German, English, or Chinese. Return ONLY the transcribed text. Do not add periods, quotes, or explanations. If it is Chinese, return Simplified Chinese characters." }
+          { text: "Transcribe this spoken word or phrase exactly. It is likely in German, English, or Chinese. Return ONLY the transcribed text. Do not add punctuation or commentary. Use Simplified Chinese for Chinese characters." }
         ]
       }
     });
-    return response.text?.trim() || '';
+    return response.text?.trim() || "";
   } catch (error) {
     console.error("Transcription failed:", error);
     throw error;

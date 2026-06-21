@@ -11,22 +11,29 @@ interface EntryCardProps {
 export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
   
   // Helper to speak text (simple browser TTS)
-  const speak = (text: string, lang: string) => {
+  const speak = (e: React.MouseEvent, text: string, lang: string) => {
+    // Prevent default to avoid any weird focus issues on mobile touch
+    e.preventDefault();
+    e.stopPropagation();
+
     if ('speechSynthesis' in window) {
-      // Cancel any current speech
+      // Vital for iOS: Cancel current speech before starting new one
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      // Map common codes
+      // Map common codes to standard BCP 47 tags
       const langMap: Record<string, string> = {
         'en': 'en-US',
         'de': 'de-DE',
-        'cn': 'zh-CN'
+        'cn': 'zh-CN',
+        'chinese': 'zh-CN',
+        'german': 'de-DE',
+        'english': 'en-US'
       };
-      utterance.lang = langMap[lang] || lang;
+      utterance.lang = langMap[lang.toLowerCase()] || lang;
       
-      // On iOS, sometimes rate needs adjustment or voice needs selection, 
-      // but defaults are usually safest for simple implementations.
+      // iOS voices can be finicky. Default rate is usually fine, 
+      // but explicitly setting it helps some versions.
       utterance.rate = 0.9; 
       
       window.speechSynthesis.speak(utterance);
@@ -58,8 +65,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
             <div className="flex justify-between items-start mb-2">
                 <LanguageTag lang={Language.DE} />
                 <button 
-                  onClick={() => speak(entry.german.word, 'de')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation"
+                  onClick={(e) => speak(e, entry.german.word, 'de')} 
+                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
                   aria-label="Listen to German pronunciation"
                 >
                     <SpeakerWaveIcon className="w-5 h-5" />
@@ -82,8 +89,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
             <div className="flex justify-between items-start mb-2">
                 <LanguageTag lang={Language.EN} />
                 <button 
-                  onClick={() => speak(entry.english.word, 'en')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation"
+                  onClick={(e) => speak(e, entry.english.word, 'en')} 
+                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
                   aria-label="Listen to English pronunciation"
                 >
                     <SpeakerWaveIcon className="w-5 h-5" />
@@ -104,8 +111,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
             <div className="flex justify-between items-start mb-2">
                 <LanguageTag lang={Language.CN} />
                 <button 
-                  onClick={() => speak(entry.chinese.word, 'cn')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation"
+                  onClick={(e) => speak(e, entry.chinese.word, 'cn')} 
+                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
                   aria-label="Listen to Chinese pronunciation"
                 >
                     <SpeakerWaveIcon className="w-5 h-5" />

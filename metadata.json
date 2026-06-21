@@ -3,5 +3,6 @@
   "description": "A smart German-English-Chinese dictionary powered by Gemini. Converts words and phrases into structured multilingual definitions with examples.",
   "requestFramePermissions": [
     "microphone"
-  ]
+  ],
+  "majorCapabilities": []
 }

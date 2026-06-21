@@ -49,17 +49,39 @@ function App() {
     inputRef.current?.focus();
   };
 
+  const getSupportedMimeType = () => {
+    // iOS Safari requires audio/mp4, usually does not support webm.
+    // Chrome supports webm.
+    const types = [
+      'audio/mp4',
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg'
+    ];
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return ''; // Let browser use default if nothing matches
+  };
+
   const startRecording = async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Audio: true is usually enough, but sometimes explicitly requesting echoCancellation helps mobile quality
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       
-      // Determine supported mime type
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
-        ? 'audio/webm' 
-        : 'audio/mp4';
+      const mimeType = getSupportedMimeType();
+      const options = mimeType ? { mimeType } : undefined;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(stream, options);
       const chunks: BlobPart[] = [];
 
       recorder.ondataavailable = (e) => {
@@ -67,7 +89,7 @@ function App() {
       };
 
       recorder.onstop = async () => {
-        // Stop all tracks to release mic
+        // Stop all tracks to release mic explicitly on iOS
         stream.getTracks().forEach(track => track.stop());
 
         if (chunks.length === 0) {
@@ -75,17 +97,26 @@ function App() {
             return;
         }
 
-        const blob = new Blob(chunks, { type: mimeType });
+        // Use the mimeType we determined, or fallback to recorder.mimeType if we let browser choose
+        const finalMimeType = mimeType || recorder.mimeType || 'audio/mp4';
+        const blob = new Blob(chunks, { type: finalMimeType });
         
-        // Convert to Base64
         const reader = new FileReader();
         reader.readAsDataURL(blob);
         reader.onloadend = async () => {
-            const base64String = (reader.result as string).split(',')[1];
+            const resultString = reader.result as string;
+            // Guard against empty reads
+            if (!resultString || !resultString.includes(',')) {
+                setError("Audio processing failed.");
+                setLoading(false);
+                return;
+            }
+
+            const base64String = resultString.split(',')[1];
             
-            setLoading(true); // UI shows loading
+            setLoading(true);
             try {
-                const text = await transcribeAudio(base64String, mimeType);
+                const text = await transcribeAudio(base64String, finalMimeType);
                 const trimmedText = text?.trim();
                 
                 if (trimmedText) {
