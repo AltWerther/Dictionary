@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { MagnifyingGlassIcon, BookOpenIcon, ArrowPathIcon, XMarkIcon, MicrophoneIcon, StopIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
-import { lookupWord, transcribeAudio } from './services/geminiService';
+import { MagnifyingGlassIcon, BookOpenIcon, ArrowPathIcon, XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { lookupWord } from './services/geminiService';
 import { DictionaryResponse } from './types';
 import { EntryCard } from './components/EntryCard';
 
@@ -10,10 +10,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Voice Input State
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const performSearch = async (term: string) => {
     if (!term.trim()) return;
@@ -29,9 +25,9 @@ function App() {
     try {
       const data = await lookupWord(term);
       setResult(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Could not find a definition. Please check your connection or try a simpler term.");
+      setError(err?.message || "Could not find a definition. Please check your connection or try a simpler term.");
     } finally {
       setLoading(false);
     }
@@ -47,114 +43,6 @@ function App() {
     setResult(null);
     setError(null);
     inputRef.current?.focus();
-  };
-
-  const getSupportedMimeType = () => {
-    // iOS Safari requires audio/mp4, usually does not support webm.
-    // Chrome supports webm.
-    const types = [
-      'audio/mp4',
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg'
-    ];
-    for (const type of types) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        return type;
-      }
-    }
-    return ''; // Let browser use default if nothing matches
-  };
-
-  const startRecording = async () => {
-    setError(null);
-    try {
-      // Audio: true is usually enough, but sometimes explicitly requesting echoCancellation helps mobile quality
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-      
-      const mimeType = getSupportedMimeType();
-      const options = mimeType ? { mimeType } : undefined;
-
-      const recorder = new MediaRecorder(stream, options);
-      const chunks: BlobPart[] = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        // Stop all tracks to release mic explicitly on iOS
-        stream.getTracks().forEach(track => track.stop());
-
-        if (chunks.length === 0) {
-            setIsRecording(false);
-            return;
-        }
-
-        // Use the mimeType we determined, or fallback to recorder.mimeType if we let browser choose
-        const finalMimeType = mimeType || recorder.mimeType || 'audio/mp4';
-        const blob = new Blob(chunks, { type: finalMimeType });
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-            const resultString = reader.result as string;
-            // Guard against empty reads
-            if (!resultString || !resultString.includes(',')) {
-                setError("Audio processing failed.");
-                setLoading(false);
-                return;
-            }
-
-            const base64String = resultString.split(',')[1];
-            
-            setLoading(true);
-            try {
-                const text = await transcribeAudio(base64String, finalMimeType);
-                const trimmedText = text?.trim();
-                
-                if (trimmedText) {
-                    performSearch(trimmedText);
-                } else {
-                    setError("Could not understand audio. Please try again.");
-                    setLoading(false); 
-                }
-            } catch (err) {
-                console.error("Transcription error", err);
-                setError("Error processing audio.");
-                setLoading(false); 
-            }
-        };
-      };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      setError("Microphone access denied. Please check your permissions.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
   };
 
   return (
@@ -189,44 +77,29 @@ function App() {
                     enterKeyHint="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className={`block w-full pl-10 sm:pl-12 pr-32 sm:pr-36 py-3 sm:py-4 rounded-xl sm:rounded-2xl border-slate-200 bg-white shadow-lg shadow-slate-200/50 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:outline-none text-lg sm:text-xl transition-all duration-200 ease-in-out ${isRecording ? 'ring-2 ring-red-500 border-red-500' : ''}`}
-                    placeholder={isRecording ? "Listening..." : "Enter a word..."}
+                    className="block w-full pl-10 sm:pl-12 pr-24 sm:pr-28 py-3 sm:py-4 rounded-xl sm:rounded-2xl border-slate-200 bg-white shadow-lg shadow-slate-200/50 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:outline-none text-lg sm:text-xl transition-all duration-200 ease-in-out"
+                    placeholder="Enter a word..."
                     autoFocus
                     autoComplete="off"
                     autoCapitalize="none"
                 />
                 
-                <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1">
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1.5">
                     {query && (
                         <button
                             type="button"
                             onClick={clearSearch}
-                            className="hidden sm:flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors"
+                            className="flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
                             aria-label="Clear search"
                         >
                             <XMarkIcon className="h-5 w-5" />
                         </button>
                     )}
-                    
-                    <button
-                        type="button"
-                        onClick={toggleRecording}
-                        className={`flex items-center justify-center p-2 rounded-full transition-all duration-200 ${isRecording ? 'bg-red-100 text-red-600 hover:bg-red-200 animate-pulse' : 'text-slate-400 hover:text-brand-600 hover:bg-slate-100'}`}
-                        aria-label={isRecording ? "Stop recording" : "Start recording"}
-                    >
-                        {isRecording ? (
-                            <StopIcon className="h-5 w-5" />
-                        ) : (
-                            <MicrophoneIcon className="h-5 w-5" />
-                        )}
-                    </button>
-
-                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
 
                     <button
                         type="submit"
                         disabled={!query.trim() || loading}
-                        className="flex items-center justify-center p-2 rounded-full text-brand-500 hover:text-brand-700 hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="flex items-center justify-center p-2 rounded-full text-brand-500 hover:text-brand-700 hover:bg-brand-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         aria-label="Search"
                     >
                         <ArrowRightIcon className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -235,19 +108,12 @@ function App() {
             </form>
             
             {/* Suggestions or Helper Text */}
-            {!result && !loading && !error && !isRecording && (
+            {!result && !loading && !error && (
                  <div className="mt-4 text-center">
                     <p className="text-sm text-slate-400">
                       Try: <button onClick={() => performSearch('Zeitgeist')} className="text-brand-600 hover:underline px-1">Zeitgeist</button> 
                       <button onClick={() => performSearch('Serendipity')} className="text-brand-600 hover:underline px-1">Serendipity</button> 
                       <button onClick={() => performSearch('危机')} className="text-brand-600 hover:underline px-1">危机</button>
-                    </p>
-                 </div>
-            )}
-             {isRecording && (
-                 <div className="mt-4 text-center">
-                    <p className="text-sm text-red-500 font-medium animate-pulse">
-                      Listening... tap stop when done.
                     </p>
                  </div>
             )}
@@ -291,7 +157,7 @@ function App() {
 
                 <div className="mt-12 pt-8 border-t border-slate-200 text-center">
                     <p className="text-xs text-slate-400">
-                        Translations generated by Gemini 2.5 Flash. Accuracy may vary.
+                        Translations powered by Gemini. Accuracy may vary.
                     </p>
                 </div>
             </div>

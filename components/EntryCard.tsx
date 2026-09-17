@@ -1,7 +1,6 @@
 import React from 'react';
 import { DictionaryEntry, Language } from '../types';
 import { LanguageTag } from './LanguageTag';
-import { SpeakerWaveIcon } from '@heroicons/react/24/outline';
 
 interface EntryCardProps {
   entry: DictionaryEntry;
@@ -9,37 +8,6 @@ interface EntryCardProps {
 }
 
 export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
-  
-  // Helper to speak text (simple browser TTS)
-  const speak = (e: React.MouseEvent, text: string, lang: string) => {
-    // Prevent default to avoid any weird focus issues on mobile touch
-    e.preventDefault();
-    e.stopPropagation();
-
-    if ('speechSynthesis' in window) {
-      // Vital for iOS: Cancel current speech before starting new one
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      // Map common codes to standard BCP 47 tags
-      const langMap: Record<string, string> = {
-        'en': 'en-US',
-        'de': 'de-DE',
-        'cn': 'zh-CN',
-        'chinese': 'zh-CN',
-        'german': 'de-DE',
-        'english': 'en-US'
-      };
-      utterance.lang = langMap[lang.toLowerCase()] || lang;
-      
-      // iOS voices can be finicky. Default rate is usually fine, 
-      // but explicitly setting it helps some versions.
-      utterance.rate = 0.9; 
-      
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 transition-all hover:shadow-md">
       {/* Header: Definition & POS */}
@@ -62,15 +30,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
         
         {/* German */}
         <div className="p-4 sm:p-5 group relative">
-            <div className="flex justify-between items-start mb-2">
+            <div className="mb-2">
                 <LanguageTag lang={Language.DE} />
-                <button 
-                  onClick={(e) => speak(e, entry.german.word, 'de')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
-                  aria-label="Listen to German pronunciation"
-                >
-                    <SpeakerWaveIcon className="w-5 h-5" />
-                </button>
             </div>
             <div className="mb-1">
                 <span className="text-xl font-serif font-bold text-slate-900 break-words">
@@ -86,15 +47,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
 
         {/* English */}
         <div className="p-4 sm:p-5 group relative">
-            <div className="flex justify-between items-start mb-2">
+            <div className="mb-2">
                 <LanguageTag lang={Language.EN} />
-                <button 
-                  onClick={(e) => speak(e, entry.english.word, 'en')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
-                  aria-label="Listen to English pronunciation"
-                >
-                    <SpeakerWaveIcon className="w-5 h-5" />
-                </button>
             </div>
             <div className="mb-1">
                 <span className="text-xl font-serif font-bold text-slate-900 break-words">{entry.english.word}</span>
@@ -108,15 +62,8 @@ export const EntryCard: React.FC<EntryCardProps> = ({ entry, index }) => {
 
         {/* Chinese */}
         <div className="p-4 sm:p-5 group relative">
-            <div className="flex justify-between items-start mb-2">
+            <div className="mb-2">
                 <LanguageTag lang={Language.CN} />
-                <button 
-                  onClick={(e) => speak(e, entry.chinese.word, 'cn')} 
-                  className="text-slate-400 hover:text-brand-600 transition-colors p-2 -mr-2 -mt-2 active:scale-95 touch-manipulation cursor-pointer"
-                  aria-label="Listen to Chinese pronunciation"
-                >
-                    <SpeakerWaveIcon className="w-5 h-5" />
-                </button>
             </div>
             <div className="mb-1">
                 <span className="text-2xl font-sc font-bold text-slate-900 break-words">{entry.chinese.word}</span>
